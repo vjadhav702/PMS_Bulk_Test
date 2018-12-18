@@ -63,16 +63,30 @@ func readDeployments() []string {
 }
 
 func worker(workerNumer int, clientIP string, done chan bool) {
+	var status bool
+	var stopTime time.Time
+	status = true
 	for true {
 		mode, noError := getPGMode(clientIP)
 		if noError {
 			if !mode {
 				fmt.Println("I am worker number : ", workerNumer, "connecting to :", clientIP, "--> MASTER NODE")
+				if !status {
+					diffTime := time.Now().Sub(stopTime)
+					fmt.Println("Downtime is --> ", diffTime)
+				}
+				status = true
+				stopTime = time.Now()
 			} else {
 				fmt.Println("I am worker number : ", workerNumer, "connecting to :", clientIP, "--> SLAVE NODE")
+				status = false
 			}
 		} else {
 			fmt.Println("I am worker number : ", workerNumer, "connecting to :", clientIP, "--> ERROR")
+			if status {
+				stopTime = time.Now()
+			}
+			status = false
 		}
 		time.Sleep(1 * time.Second)
 	}
