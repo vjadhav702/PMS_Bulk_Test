@@ -12,6 +12,14 @@ import (
 	_ "github.com/lib/pq"
 )
 
+const (
+	host     = "endpoint"
+	port     = 5432
+	user     = "****"
+	password = "****"
+	dbname   = "postgres"
+)
+
 func main() {
 	fmt.Println("Start of test")
 
@@ -74,6 +82,10 @@ func worker(workerNumer int, clientIP string, done chan bool) {
 				if !status {
 					diffTime := time.Now().Sub(stopTime)
 					fmt.Println("Downtime is --> ", diffTime)
+					err := insertDowntime(workerNumer, diffTime.String())
+					if err != nil {
+						os.Exit(1)
+					}
 				}
 				status = true
 				stopTime = time.Now()
@@ -88,9 +100,7 @@ func worker(workerNumer int, clientIP string, done chan bool) {
 			}
 			status = false
 		}
-		time.Sleep(1 * time.Second)
 	}
-	//done <- true
 }
 
 func getPGMode(host string) (bool, bool) {
@@ -120,5 +130,25 @@ func getPGMode(host string) (bool, bool) {
 		}
 	}
 	return identifiedPGMode, true
+}
 
+func insertDowntime(workerID int, downtime string) error {
+	fmt.Println("Inserting downtime in remote pg instance")
+
+	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", host, port, user, password, dbname)
+	db, err := sql.Open("postgres", psqlInfo)
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
+	sqlStatement := `INSERT INTO PMS_BULK_TEST (worker_id, downtime) VALUES ($1, $2) RETURNING id`
+	id := 0
+	err = db.QueryRow(sqlStatement, workerID, downtime).Scan(&id)
+	if err != nil {
+		fmt.Println("Error occured during insertion to remote db")
+		return err
+	}
+	fmt.Println("New record ID is:", id)
+	return nil
 }
